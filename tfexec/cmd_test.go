@@ -6,12 +6,15 @@
 package tfexec
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/opentofu/tofu-exec/internal/version"
+	"github.com/opentofu/tofu-exec/tfexec/internal/testutil"
 )
 
 func TestMergeUserAgent(t *testing.T) {
@@ -36,6 +39,42 @@ func TestMergeUserAgent(t *testing.T) {
 				t.Fatalf("expected %q, got %q", c.expected, actual)
 			}
 		})
+	}
+}
+
+func TestBuildTofuCmd_GracefulShutdownDefault(t *testing.T) {
+	td := t.TempDir()
+
+	tf, err := NewTofu(td, tfVersion(t, testutil.Latest_v1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tf.SetEnv(map[string]string{})
+
+	cmd := tf.buildTofuCmd(context.Background(), nil, "apply")
+
+	if cmd.WaitDelay != 0 {
+		t.Fatalf("expected WaitDelay to be 0 by default, got %s", cmd.WaitDelay)
+	}
+}
+
+func TestBuildTofuCmd_GracefulShutdownEnabled(t *testing.T) {
+	td := t.TempDir()
+
+	tf, err := NewTofu(td, tfVersion(t, testutil.Latest_v1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tf.SetEnv(map[string]string{})
+	tf.SetGracefulShutdown(30 * time.Second)
+
+	cmd := tf.buildTofuCmd(context.Background(), nil, "apply")
+
+	if cmd.Cancel == nil {
+		t.Fatal("expected Cancel to be set when graceful shutdown is enabled")
+	}
+	if cmd.WaitDelay != 30*time.Second {
+		t.Fatalf("expected WaitDelay to be 30s, got %s", cmd.WaitDelay)
 	}
 }
 
