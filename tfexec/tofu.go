@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-version"
 )
@@ -67,6 +68,8 @@ type Tofu struct {
 	// TF_LOG_PROVIDER environment variable
 	logProvider string
 
+	gracefulShutdownTimeout time.Duration
+
 	versionLock  sync.Mutex
 	execVersion  *version.Version
 	provVersions map[string]*version.Version
@@ -118,6 +121,20 @@ func (tf *Tofu) SetEnv(env map[string]string) error {
 // SetLogger specifies a logger for tfexec to use.
 func (tf *Tofu) SetLogger(logger printfer) {
 	tf.logger = logger
+}
+
+// SetGracefulShutdown configures graceful process shutdown on context
+// cancellation. When enabled, an interrupt signal (SIGINT on Unix) is sent
+// to the tofu process, giving it time to clean up (e.g., release state locks).
+// After the timeout the process is forcefully killed.
+//
+// A zero or negative timeout disables graceful shutdown; context cancellation
+// immediately kills the process (the default behavior).
+//
+// On Windows, os.Interrupt is not supported, so the process is killed
+// immediately regardless of the timeout.
+func (tf *Tofu) SetGracefulShutdown(timeout time.Duration) {
+	tf.gracefulShutdownTimeout = timeout
 }
 
 // SetStdout specifies a writer to stream stdout to for every command.

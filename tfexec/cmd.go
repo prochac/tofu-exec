@@ -180,6 +180,19 @@ func (tf *Tofu) buildTofuCmd(ctx context.Context, mergeEnv map[string]string, ar
 	cmd.Env = tf.buildEnv(mergeEnv)
 	cmd.Dir = tf.workingDir
 
+	if tf.gracefulShutdownTimeout > 0 {
+		cmd.Cancel = func() error {
+			// Send SIGINT so tofu can clean up (e.g. release state locks).
+			// On Windows, Signal(os.Interrupt) is not supported and returns
+			// an error — fall back to Kill for immediate termination.
+			if err := cmd.Process.Signal(os.Interrupt); err != nil {
+				return cmd.Process.Kill()
+			}
+			return nil
+		}
+		cmd.WaitDelay = tf.gracefulShutdownTimeout
+	}
+
 	tf.logger.Printf("[INFO] running Tofu command: %s", cmd.String())
 
 	return cmd
